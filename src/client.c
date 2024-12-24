@@ -3,7 +3,7 @@
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <netinet/tcp.h>
-// #include <pthread.h>
+#include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -86,8 +86,46 @@ print_client_status() {
 }
 
 int
-set_socket_status() {
-  // int ret = setsockopt(client_socket_fd, SOL_SOCKET, );
+send_message_to_server(char msg[]) {
+  prtlog("尝试向服务器发送一条消息. "); // debug
+  if (send(client_socket_fd, msg, sizeof(msg), 0) < 0) {
+    prterr(send());
+    return -1;
+  }
+  prtlog("\033[32m成功向服务器发送一条消息: \033[0m%s", msg); // debug
+  return 0;
+}
+
+char received_message[1024];
+
+void *
+receive_from_server(void *arg) {
+  memset(received_message, 0, 1024);
+  do {
+    if (recv(client_socket_fd, received_message, sizeof(received_message), 0) < 0) {
+      prterr(recv());
+      return NULL;
+    }
+    prtlog("\033[32m成功接收一条来自服务器的消息: \033[0m%s", received_message);
+  } while (!exit_flag);
+  return NULL;
+}
+
+int
+receive_guard() {
+  pthread_t receive_guard_p;
+  prtlog("正在尝试创建 receive_guard 线程. ");
+  if (pthread_create(&receive_guard_p, NULL, receive_from_server, NULL) < 0) {
+    prterr(pthread_create());
+    return -3;
+  }
+  prtlog("\033[32m成功创建 receive_guard 线程. \033[0m");
+  prtlog("正在尝试分离 receive_guard 线程. ");
+  if (pthread_detach(receive_guard_p) != 0) {
+    prterr(pthread_datach());
+    return -1;
+  }
+  prtlog("\033[32m成功分离 receive_guard 线程. \033[0m");
   return 0;
 }
 
@@ -98,11 +136,11 @@ printmenu() {
   prtlog("2.尝试连接到服务器；");
   prtlog("3.查看当前状态；");
   prtlog("4.尝试向服务器发送信息；");
+  prtlog("5.xxx；");
   prtlog("4.xxx；");
   prtlog("4.xxx；");
   prtlog("4.xxx；");
-  prtlog("4.xxx；");
-  prtlog("5.关闭客户端；");
+  prtlog("9.断开连接；");
   prtlog("0.退出程序；");
 }
 
@@ -162,20 +200,35 @@ main(int argc, char *argv[]) {
         close(client_socket_fd);
         erret;
       }
+      if (receive_guard() == -1) {
+        close(client_socket_fd);
+        erret;
+      }
       break;
     }
 
-    case 3:
+    case 3: {
       if (print_client_status() == -1) {
         close(client_socket_fd);
         erret;
       }
       break;
+    }
 
-    case 4:
-      break;
+    case 4: {
+      char msg[128];
+      prtlog("你想发送的内容：");
+      scanf("%127s", msg);
+      if (send_message_to_server(msg) == -1) {
+        close(client_socket_fd);
+        erret;
+      }
+    } break;
 
     case 5:
+      break;
+
+    case 9:
       close(client_socket_fd);
       prtlog("已关闭客户端套接字. ");
       break;

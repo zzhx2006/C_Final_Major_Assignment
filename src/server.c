@@ -13,7 +13,6 @@
 INITLOG;
 
 #define kMaxClientCount 16
-bool exit_flag = 0; // 程序是否应该退出的标志，用在 while 的条件中
 int port_number = 8889;
 
 int server_socket_fd;                     // 服务器套接字的文件描述符
@@ -28,6 +27,8 @@ typedef struct {
   socklen_t client_address_struct_len;
   char name[32];
   char passwd[32];
+  pthread_t thread_id;
+  int status;
 } ClientInfo;
 
 ClientInfo client_list[kMaxClientCount]; // 客户端数组，内存放客户端结构体
@@ -94,58 +95,65 @@ listen_socket() {
   return 0;
 }
 
+// 这是一个线程函数，必须返回 void *，必须接受 void * 类型的参数.
+// 这是真正执行阻塞 accpet 的地方，这个函数中的 accept 所接受的新的客户端连接会被移入新的线程中.
+// 参数 ret 即是这个函数的返回值.
 void *
-f(void *ret) {
-  int *return_value = (int *)ret;
-  client_list[client_count].client_address_struct_len = sizeof(client_list[client_count].client_address_struct);
-  int new_socket_fd;
-  new_socket_fd = accept(server_socket_fd,
-                         (struct sockaddr *)&client_list[client_count].client_address_struct,
-                         &client_list[client_count].client_address_struct_len);
-  // accept 阻塞......
-  if (new_socket_fd < 0) {
-    prterr(accept());
-    *return_value = -1;
-    prtlog("\033[33m该 accept 线程被异常退出. \033[0m");
-    return NULL;
-  } else {
-    prtlog("\033[32m成功接受了新的连接请求. \033[0m");
-    prtlog("\033[33m该客户端的 IP 地址：%s\033[0m", inet_ntoa(client_list[client_count].client_address_struct.sin_addr));
-    prtlog("\033[33m该客户端的端口号：%d\033[0m", ntohs(client_list[client_count].client_address_struct.sin_port));
-    prtlog("\033[33m该客户端套接字在 client_list[] 中的索引：%d\033[0m", client_count);
+accept_guard(void *arg) {
+  do { // 由于在执行这个函数之前，已经排除了 client_list 已满的情况，故在此无需再次判断.
     pthread_mutex_lock(&lock);
-    client_list[client_count].fd = new_socket_fd;
-    client_count++;
+    client_list[client_count].client_address_struct_len = sizeof(client_list[client_count].client_address_struct);
     pthread_mutex_unlock(&lock);
-    *return_value = 0;
-    prtlog("\033[33m该 accept 线程被退出. \033[0m");
-    return NULL;
-  }
+    int new_socket_fd;
+    new_socket_fd = accept(server_socket_fd,
+                           (struct sockaddr *)&client_list[client_count].client_address_struct,
+                           &client_list[client_count].client_address_struct_len);
+    // accept 阻塞......
+    if (new_socket_fd < 0) {
+      prterr(accept());
+      prtlog("\033[33m该 accept 线程被异常退出. \033[0m");
+      return NULL;
+    } else {
+      prtlog("\033[32m成功接受了新的连接请求. \033[0m");
+      prtlog("\033[33m该客户端的 IP 地址：%s\033[0m", inet_ntoa(client_list[client_count].client_address_struct.sin_addr));
+      prtlog("\033[33m该客户端的端口号：%d\033[0m", ntohs(client_list[client_count].client_address_struct.sin_port));
+      prtlog("\033[33m该客户端套接字在 client_list[] 中的索引：%d\033[0m", client_count); // debug
+      pthread_mutex_lock(&lock);
+      client_list[client_count].fd = new_socket_fd;
+      client_list[client_count].thread_id = pthread_self();
+      client_count++;
+      pthread_mutex_unlock(&lock);
+      prtlog("继续监听......");
+    }
+  } while (client_count < kMaxClientCount);
+  prtlog("\033[33m该 accept 线程被退出. \033[0m");
+  return NULL;
 }
 
 
 // 接受新的来自客户端的连接请求
+// 这仅是主函数的一个分支过程，并不需要一个独立的进程
 int
 accept_client_connection() {
   if (client_count == kMaxClientCount) {
     prtlog("\033[31m已达到服务器的最大连接数. \033[0m");
     return -2;
   }
-
-  pthread_t begin_try_accept;
-  int return_value;
-  prtlog("正在尝试创建一个新线程. ");
-  if (pthread_create(&begin_try_accept, NULL, f, (void *)&return_value) < 0) {
+  pthread_t accept_guard_p;
+  prtlog("正在尝试创建 accept_guard 线程. ");
+  // 真正执行阻塞 accept 的位置才需要一个独立的进程
+  if (pthread_create(&accept_guard_p, NULL, accept_guard, NULL) < 0) {
     prterr(pthread_create());
     return -3;
   }
-  prtlog("\033[32m成功创建一个新线程. \033[0m");
-  prtlog("正在尝试分离该线程. ");
-  if (pthread_detach(begin_try_accept) != 0) {
+  prtlog("\033[32m成功创建 accept_guard 线程. \033[0m");
+  prtlog("正在尝试分离 accept_guard 线程. ");
+  if (pthread_detach(accept_guard_p) != 0) {
     prterr(pthread_datach());
     return -1;
   }
-  prtlog("\033[32m成功分离该线程. \033[0m");
+  prtlog("\033[32m成功分离 accept_guard 线程. \033[0m");
+
   return 0;
 }
 
@@ -204,6 +212,7 @@ main(int argc, char *argv[]) {
     erret;
   }
 
+  bool exit_flag = 0; // 程序是否应该退出的标志，用在 while 的条件中
   while (!exit_flag) {
     printmenu();
     int id1 = 0;
