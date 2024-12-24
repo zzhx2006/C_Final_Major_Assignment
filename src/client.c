@@ -14,7 +14,7 @@
 INITLOG;
 
 bool exit_flag = 0; // 程序是否应该退出的标志，用在 while 的条件中
-int port_number = 8889;
+int port_number = 8892;
 
 int client_socket_fd;                     // 客户端套接字的文件描述符
 struct sockaddr_in server_address_struct; // 服务器的地址结构体

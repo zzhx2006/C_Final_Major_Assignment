@@ -1,4 +1,6 @@
 #define SERVER_C
+// #define DEBUG_FLAG
+#undef DEBUG_FLAG
 #include "../include/logger.h"
 #include <arpa/inet.h>
 #include <netinet/in.h>
@@ -13,7 +15,7 @@
 INITLOG;
 
 #define kMaxClientCount 16
-int port_number = 8889;
+int port_number = 8892;
 
 int server_socket_fd;                     // 服务器套接字的文件描述符
 struct sockaddr_in server_address_struct; // 服务器的地址结构体
@@ -95,11 +97,73 @@ listen_socket() {
   return 0;
 }
 
+char received_message[1024];
+
+void *
+receive_from_client(void *fd) {
+#ifdef DEBUG_FLAG
+  prtlog("5秒后执行 receive_from_client(). ");
+  sleep(5);
+#endif
+  int client_fd = *((int *)fd);
+#ifdef DEBUG_FLAG
+  prtlog("client_fd = %d", client_fd);
+#endif
+  memset(received_message, 0, 1024);
+  do {
+    int ret = recv(client_fd, received_message, sizeof(received_message), 0);
+#ifdef DEBUG_FLAG
+    prtlog("程序执行到了这句话. 说明recv()已经被执行. ");
+#endif
+    if (ret < 0) {
+      prterr(recv());
+      close(client_fd);
+      return NULL;
+    } else if (ret == 0) {
+      prtlog("客户端已断开连接. ");
+      close(client_fd);
+      return NULL;
+    }
+    prtlog("\033[32m成功接收一条来自客户端 %d 的消息: \033[0m%s", client_fd, received_message);
+  } while (client_fd > 0);
+  return NULL;
+}
+
+int
+receive_guard(int fd) {
+#ifdef DEBUG_FLAG
+  prtlog("5秒后执行 receive_guard(). ");
+  sleep(5);
+#endif
+  void *p = (void *)&fd;
+#ifdef DEBUG_FLAG
+  prtlog("fd = %d", fd);
+#endif
+  pthread_t receive_guard_p;
+  prtlog("正在尝试创建 receive_guard 线程. ");
+  if (pthread_create(&receive_guard_p, NULL, receive_from_client, p) < 0) {
+    prterr(pthread_create());
+    return -3;
+  }
+  prtlog("\033[32m成功创建 receive_guard 线程. \033[0m");
+  prtlog("正在尝试分离 receive_guard 线程. ");
+  if (pthread_detach(receive_guard_p) != 0) {
+    prterr(pthread_datach());
+    return -1;
+  }
+  prtlog("\033[32m成功分离 receive_guard 线程. \033[0m");
+  return 0;
+}
+
 // 这是一个线程函数，必须返回 void *，必须接受 void * 类型的参数.
 // 这是真正执行阻塞 accpet 的地方，这个函数中的 accept 所接受的新的客户端连接会被移入新的线程中.
 // 参数 ret 即是这个函数的返回值.
 void *
 accept_guard(void *arg) {
+#ifdef DEBUG_FLAG
+  prtlog("5秒后执行 accept_guard(). ");
+  sleep(5);
+#endif
   do { // 由于在执行这个函数之前，已经排除了 client_list 已满的情况，故在此无需再次判断.
     pthread_mutex_lock(&lock);
     client_list[client_count].client_address_struct_len = sizeof(client_list[client_count].client_address_struct);
@@ -123,6 +187,11 @@ accept_guard(void *arg) {
       client_list[client_count].thread_id = pthread_self();
       client_count++;
       pthread_mutex_unlock(&lock);
+      if (receive_guard(new_socket_fd) < 0) {
+        prterr(receive_guard());
+        close(server_socket_fd);
+        return NULL;
+      }
       prtlog("继续监听......");
     }
   } while (client_count < kMaxClientCount);
@@ -135,6 +204,10 @@ accept_guard(void *arg) {
 // 这仅是主函数的一个分支过程，并不需要一个独立的进程
 int
 accept_client_connection() {
+#ifdef DEBUG_FLAG
+  prtlog("5秒后执行 accept_client_connection(). ");
+  sleep(5);
+#endif
   if (client_count == kMaxClientCount) {
     prtlog("\033[31m已达到服务器的最大连接数. \033[0m");
     return -2;
@@ -171,7 +244,7 @@ print_server_status() {
   prtlog("当前状态：");
   prtlog("IP 地址：%s", inet_ntoa(current_status.sin_addr));
   prtlog("监听端口号：%d", ntohs(current_status.sin_port));
-  prtlog("在线用户数：");
+  prtlog("在线用户数：%d", client_count);
   prtlog("服务器文件描述符：%d", server_socket_fd);
   return 0;
 }
@@ -255,12 +328,13 @@ main(int argc, char *argv[]) {
       break;
     }
 
-    case 3:
+    case 3: {
       if (print_server_status() == -1) {
         close(server_socket_fd);
         erret;
       }
       break;
+    }
 
     case 4: {
       if (accept_client_connection() < 0) {
