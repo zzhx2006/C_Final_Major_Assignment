@@ -13,4 +13,8 @@ target("server")
     set_kind("binary")
     add_includedirs(include)
     add_files("src/server.c")
-    
+
+target("client")
+    set_kind("binary")
+    add_includedirs(include)
+    add_files("src/client.c")

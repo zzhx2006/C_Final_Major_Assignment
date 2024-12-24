@@ -1,6 +1,4 @@
-Language: C
 BasedOnStyle: LLVM
-Standard: c23
 SortIncludes: true
 ColumnLimit: 0
 AlwaysBreakAfterReturnType: TopLevel
