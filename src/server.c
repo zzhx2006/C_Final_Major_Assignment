@@ -3,6 +3,7 @@
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <netinet/tcp.h>
+#include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -11,11 +12,26 @@
 
 INITLOG;
 
+#define kMaxClientCount 16
 bool exit_flag = 0; // 程序是否应该退出的标志，用在 while 的条件中
-int port_number = 8888;
+int port_number = 8889;
 
-int server_socket_fd; // 服务器套接字的文件描述符
+int server_socket_fd;                     // 服务器套接字的文件描述符
 struct sockaddr_in server_address_struct; // 服务器的地址结构体
+
+pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER; // 互斥锁，保护对客户端数组的访问
+
+// 存储客户端信息的结构体
+typedef struct {
+  int fd;
+  struct sockaddr_in client_address_struct;
+  socklen_t client_address_struct_len;
+  char name[32];
+  char passwd[32];
+} ClientInfo;
+
+ClientInfo client_list[kMaxClientCount]; // 客户端数组，内存放客户端结构体
+int client_count = 0;                    // 当前已有的客户端数量
 
 /* \033[31m 红色  \033[32m 绿色  \033[33m 橙色  \033[0m 重置  */
 
@@ -26,7 +42,8 @@ struct sockaddr_in server_address_struct; // 服务器的地址结构体
 */
 
 // 创建服务器套接字；失败返回 -1，成功返回 0
-int create_socket() {
+int
+create_socket() {
   prtlog("尝试创建服务器套接字. ");
   server_socket_fd = socket(AF_INET, SOCK_STREAM, 0);
   if (server_socket_fd < 0) {
@@ -39,7 +56,8 @@ int create_socket() {
 }
 
 // 设置服务器的地址结构体
-void set_address_struct() {
+void
+set_address_struct() {
   prtlog("尝试设置服务器的地址结构体. ");
   memset(&server_address_struct, 0, sizeof(server_address_struct));
   server_address_struct.sin_family = AF_INET;          // 协议簇
@@ -50,7 +68,8 @@ void set_address_struct() {
 }
 
 // 绑定服务器的套接字到地址结构体；失败返回 -1，成功返回 0
-int bind_socket_and_addrstruct() {
+int
+bind_socket_and_addrstruct() {
   prtlog("尝试绑定服务器的套接字到地址结构体. ");
   if (bind(server_socket_fd, (struct sockaddr *)&server_address_struct,
            sizeof(server_address_struct)) < 0) {
@@ -63,11 +82,11 @@ int bind_socket_and_addrstruct() {
 }
 
 // 监听服务器套接字；失败返回 -1，成功返回 0
-int listen_socket() {
+int
+listen_socket() {
   prtlog("尝试监听服务器套接字. ");
-  if (listen(server_socket_fd, 8) < 0) {
+  if (listen(server_socket_fd, kMaxClientCount) < 0) {
     prterr(listen());
-    // close(server_socket_fd);
     return -1;
   }
   prtlog("\033[32m开始监听服务器成功. \033[0m");
@@ -75,8 +94,65 @@ int listen_socket() {
   return 0;
 }
 
+void *
+f(void *ret) {
+  int *return_value = (int *)ret;
+  client_list[client_count].client_address_struct_len = sizeof(client_list[client_count].client_address_struct);
+  int new_socket_fd;
+  new_socket_fd = accept(server_socket_fd,
+                         (struct sockaddr *)&client_list[client_count].client_address_struct,
+                         &client_list[client_count].client_address_struct_len);
+  // accept 阻塞......
+  if (new_socket_fd < 0) {
+    prterr(accept());
+    *return_value = -1;
+    prtlog("\033[33m该 accept 线程被异常退出. \033[0m");
+    return NULL;
+  } else {
+    prtlog("\033[32m成功接受了新的连接请求. \033[0m");
+    prtlog("\033[33m该客户端的 IP 地址：%s\033[0m", inet_ntoa(client_list[client_count].client_address_struct.sin_addr));
+    prtlog("\033[33m该客户端的端口号：%d\033[0m", ntohs(client_list[client_count].client_address_struct.sin_port));
+    prtlog("\033[33m该客户端套接字在 client_list[] 中的索引：%d\033[0m", client_count);
+    pthread_mutex_lock(&lock);
+    client_list[client_count].fd = new_socket_fd;
+    client_count++;
+    pthread_mutex_unlock(&lock);
+    *return_value = 0;
+    prtlog("\033[33m该 accept 线程被退出. \033[0m");
+    return NULL;
+  }
+}
+
+
+// 接受新的来自客户端的连接请求
+int
+accept_client_connection() {
+  if (client_count == kMaxClientCount) {
+    prtlog("\033[31m已达到服务器的最大连接数. \033[0m");
+    return -2;
+  }
+
+  pthread_t begin_try_accept;
+  int return_value;
+  prtlog("正在尝试创建一个新线程. ");
+  if (pthread_create(&begin_try_accept, NULL, f, (void *)&return_value) < 0) {
+    prterr(pthread_create());
+    return -3;
+  }
+  prtlog("\033[32m成功创建一个新线程. \033[0m");
+  prtlog("正在尝试分离该线程. ");
+  if (pthread_detach(begin_try_accept) != 0) {
+    prterr(pthread_datach());
+    return -1;
+  }
+  prtlog("\033[32m成功分离该线程. \033[0m");
+  return 0;
+}
+
+
 // 打印服务器当前状态信息
-int print_server_status() {
+int
+print_server_status() {
   struct sockaddr_in current_status;
   socklen_t current_status_len = sizeof(current_status);
   if (getsockname(server_socket_fd, (struct sockaddr *)&current_status,
@@ -93,17 +169,18 @@ int print_server_status() {
 }
 
 // 打印功能菜单
-void printmenu() {
+void
+printmenu() {
   prtlog("1.设置端口号；");
   prtlog("2.尝试开始监听；");
   prtlog("3.查看当前状态；");
-  prtlog("4.列出所有已连接的用户；");
+  prtlog("4.开始接受客户端连接；");
   prtlog("5.关闭服务器；");
   prtlog("0.退出程序；");
 }
 
-int main(int argc, char *argv[]) {
-
+int
+main(int argc, char *argv[]) {
   log_file = fopen("server.log", "a");
   if (log_file == NULL) {
     prterr(fopen());
@@ -113,8 +190,7 @@ int main(int argc, char *argv[]) {
   /*先执行操作，获取返回值；如果错误，执行erret. */
 
   // 创建服务器套接字
-  int ret1 = create_socket();
-  if (ret1 == -1) {
+  if (create_socket() == -1) {
     close(server_socket_fd);
     erret;
   }
@@ -123,8 +199,7 @@ int main(int argc, char *argv[]) {
   set_address_struct();
 
   // 绑定服务器的套接字到地址结构体
-  int ret2 = bind_socket_and_addrstruct();
-  if (ret2 == -1) {
+  if (bind_socket_and_addrstruct() == -1) {
     close(server_socket_fd);
     erret;
   }
@@ -147,18 +222,24 @@ int main(int argc, char *argv[]) {
         port_number = new_port_number;
         prtlog("\033[32m成功修改端口号为 %d. \033[0m", port_number);
       }
-      set_address_struct();
-      ret2 = bind_socket_and_addrstruct();
-      if (ret2 == -1) {
+      close(server_socket_fd);
+      prtlog("关闭了旧套接字. ");
+      prtlog("尝试设置新的套接字：");
+      if (create_socket() == -1) {
         close(server_socket_fd);
         erret;
       }
+      set_address_struct();
+      if (bind_socket_and_addrstruct() == -1) {
+        close(server_socket_fd);
+        erret;
+      }
+      prtlog("\033[32m重置服务端套接字成功. \033[0m");
       break;
     }
 
     case 2: {
-      int ret3 = listen_socket();
-      if (ret3 == -1) {
+      if (listen_socket() == -1) {
         close(server_socket_fd);
         erret;
       }
@@ -166,15 +247,19 @@ int main(int argc, char *argv[]) {
     }
 
     case 3:
-      int ret4 = print_server_status();
-      if (ret4 == -1) {
+      if (print_server_status() == -1) {
         close(server_socket_fd);
         erret;
       }
       break;
 
-    case 4:
+    case 4: {
+      if (accept_client_connection() < 0) {
+        close(server_socket_fd);
+        erret;
+      }
       break;
+    }
 
     case 5:
       close(server_socket_fd);
