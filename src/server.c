@@ -30,6 +30,7 @@ typedef struct {
   char name[32];
   char passwd[32];
   pthread_t thread_id;
+  // 0: 未使用；1: 已连接；2: ...
   int status;
 } ClientInfo;
 
@@ -97,49 +98,121 @@ listen_socket() {
   return 0;
 }
 
-char received_message[1024];
+// 通过文件描述符获取该客户端在数组中的索引.
+// 未找到返回 -1，否则返回索引值.
+int
+get_client_by_fd(int fd) {
+  for (int i = 0; i < client_count; i++) {
+    if (client_list[i].fd == fd) {
+      return i;
+    }
+  }
+  return -1;
+}
 
+// 断开指定文件描述符的客户端的连接.
+// 参数：要断开连接的客户端的文件描述符.
+// 返回值：0：正常；-1：异常.
+int
+disconnect_client(int fd) {
+  int index = get_client_by_fd(fd);
+  // 如果未找到就直接返回 -1.
+  if (index < 0) {
+    prtlog("\033[31m断开客户端 %d 时出错：\033[0m", fd);
+    prtlog("\033[31m未找到文件描述符为 %d 的客户端. \033[0m", fd);
+    return -1;
+  }
+  close(fd);
+  // 如果不是最后一个客户端，就将最后一个覆盖到当前 ClientInfo，然后不用再管最后一个（因为已经断开了连接），直接将 client_count 指针减 1.
+  if (index != client_count - 1) {
+    memcpy(&client_list[index], &client_list[client_count - 1], sizeof(ClientInfo));
+  }
+  client_count--;
+  prtlog("已断开与客户端 %d 的连接. ", fd);
+  prtlog("当前在线用户数：%d", client_count);
+  return 0;
+}
+
+// 向文件描述符为 fd 的客户端发送内容为 msg 的消息.
+// 返回：0：正常；-1：异常.
+int
+send_message_to_client(int fd, char msg[]) {
+  if (send(fd, msg, sizeof(msg), 0) < 0) {
+    prterr(send());
+    prtlog("向客户端 %d 发送信息失败. ", fd);
+    return -1;
+  }
+  prtlog("\033[32m成功向客户端 %d 发送一条消息: \033[0m%s", fd, msg);
+  return 0;
+}
+
+// 向所有用户发送内容为 msg 的消息（相当于群发消息）.
+// 返回：0：正常；-1：异常.
+int
+forward_all_client(char msg[]) {
+  for (int i = 0; i < client_count; i++) {
+    if (send_message_to_client(client_list[i].fd, msg) < 0) {
+      return -1;
+    }
+  }
+  return 0;
+}
+
+char received_message[1024]; // 接受来自客户端的消息.
+
+// 使用结构体向线程传递参数.
+typedef struct {
+  int client_fd;
+} thread_args;
+
+// 线程函数. 执行 recv() 的地方.
+// 接受一个指向结构体的 void * 指针，内含客户端文件描述符.
 void *
-receive_from_client(void *fd) {
+receive_from_client(void *arg) {
+  thread_args *t = (thread_args *)arg;
 #ifdef DEBUG_FLAG
-  prtlog("5秒后执行 receive_from_client(). ");
-  sleep(5);
-#endif
-  int client_fd = *((int *)fd);
-#ifdef DEBUG_FLAG
+  prtlog("执行 receive_from_client(). ");
   prtlog("client_fd = %d", client_fd);
 #endif
   memset(received_message, 0, 1024);
   do {
-    int ret = recv(client_fd, received_message, sizeof(received_message), 0);
+    int ret = recv(t->client_fd, received_message, sizeof(received_message), 0);
 #ifdef DEBUG_FLAG
-    prtlog("程序执行到了这句话. 说明recv()已经被执行. ");
+    prtlog("recv()已经被执行. ");
 #endif
     if (ret < 0) {
       prterr(recv());
-      close(client_fd);
+      close(t->client_fd);
+      free(t);
       return NULL;
     } else if (ret == 0) {
-      prtlog("客户端已断开连接. ");
-      close(client_fd);
+      disconnect_client(t->client_fd);
+      free(t);
       return NULL;
     }
-    prtlog("\033[32m成功接收一条来自客户端 %d 的消息: \033[0m%s", client_fd, received_message);
-  } while (client_fd > 0);
+    prtlog("\033[32m成功接收一条来自客户端 %d 的消息: \033[0m%s", t->client_fd, received_message);
+    prtlog("尝试群发这条消息. ");
+    if (forward_all_client(received_message) < 0) {
+      prtlog("\033[31m群发消息时发生异常. \033[0m");
+    }
+    prtlog("\033[32m群发成功. \033[0m");
+  } while (t->client_fd > 0 && client_count < kMaxClientCount);
+  free(t);
   return NULL;
 }
 
+// 在接收了一个客户端后，将会执行此函数，去创建一个守卫线程，来“守卫”这个客户端是否有消息发送过来.
+// 接收一个参数 fd，代表这个客户端的套接字.
+// 返回 -3：线程创建失败；返回 -1：线程分离失败；返回 0：正常.
 int
 receive_guard(int fd) {
 #ifdef DEBUG_FLAG
-  prtlog("5秒后执行 receive_guard(). ");
-  sleep(5);
-#endif
-  void *p = (void *)&fd;
-#ifdef DEBUG_FLAG
-  prtlog("fd = %d", fd);
+  prtlog("执行 receive_guard(). ");
+  prtlog("client_fd = %d", client_fd);
 #endif
   pthread_t receive_guard_p;
+  thread_args *p = malloc(sizeof(thread_args));
+  p->client_fd = fd;
   prtlog("正在尝试创建 receive_guard 线程. ");
   if (pthread_create(&receive_guard_p, NULL, receive_from_client, p) < 0) {
     prterr(pthread_create());
@@ -157,12 +230,10 @@ receive_guard(int fd) {
 
 // 这是一个线程函数，必须返回 void *，必须接受 void * 类型的参数.
 // 这是真正执行阻塞 accpet 的地方，这个函数中的 accept 所接受的新的客户端连接会被移入新的线程中.
-// 参数 ret 即是这个函数的返回值.
 void *
 accept_guard(void *arg) {
 #ifdef DEBUG_FLAG
-  prtlog("5秒后执行 accept_guard(). ");
-  sleep(5);
+  prtlog("执行 accept_guard(). ");
 #endif
   do { // 由于在执行这个函数之前，已经排除了 client_list 已满的情况，故在此无需再次判断.
     pthread_mutex_lock(&lock);
@@ -205,8 +276,7 @@ accept_guard(void *arg) {
 int
 accept_client_connection() {
 #ifdef DEBUG_FLAG
-  prtlog("5秒后执行 accept_client_connection(). ");
-  sleep(5);
+  prtlog("执行 accept_client_connection(). ");
 #endif
   if (client_count == kMaxClientCount) {
     prtlog("\033[31m已达到服务器的最大连接数. \033[0m");
@@ -229,7 +299,6 @@ accept_client_connection() {
 
   return 0;
 }
-
 
 // 打印服务器当前状态信息
 int
@@ -256,7 +325,9 @@ printmenu() {
   prtlog("2.尝试开始监听；");
   prtlog("3.查看当前状态；");
   prtlog("4.开始接受客户端连接；");
-  prtlog("5.关闭服务器；");
+  prtlog("5.断开所有客户端连接；");
+  // prtlog("6.断开某一客户端连接；");
+  prtlog("7.关闭服务器；");
   prtlog("0.退出程序；");
 }
 
@@ -344,7 +415,15 @@ main(int argc, char *argv[]) {
       break;
     }
 
-    case 5:
+    case 5: {
+      // if (accept_client_connection() < 0) {
+      //   close(server_socket_fd);
+      //   erret;
+      // }
+      break;
+    }
+
+    case 7:
       close(server_socket_fd);
       prtlog("已关闭服务器套接字. ");
       break;

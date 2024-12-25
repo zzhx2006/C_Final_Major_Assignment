@@ -102,8 +102,14 @@ void *
 receive_from_server(void *arg) {
   memset(received_message, 0, 1024);
   do {
-    if (recv(client_socket_fd, received_message, sizeof(received_message), 0) < 0) {
+    int ret = recv(client_socket_fd, received_message, sizeof(received_message), 0);
+    if (ret < 0) {
       prterr(recv());
+      close(client_socket_fd);
+      return NULL;
+    } else if (ret == 0) {
+      prtlog("\033[33m已断开与服务器的连接. \033[0m");
+      close(client_socket_fd);
       return NULL;
     }
     prtlog("\033[32m成功接收一条来自服务器的消息: \033[0m%s", received_message);
