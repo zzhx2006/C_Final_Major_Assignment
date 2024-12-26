@@ -1,7 +1,3 @@
-#define SERVER_C
-// #define DEBUG_FLAG
-#undef DEBUG_FLAG
-#include "../include/logger.h"
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <netinet/tcp.h>
@@ -12,30 +8,22 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
-INITLOG;
+#include "../../include/logger.h"
+#include "../../include/server.h"
 
-#define kMaxClientCount 16
+char user[1024];
+time_t now;
+struct tm *tm_info;
+char format_time[32];
+FILE *log_file;
+
 int port_number = 8892;
-
-int server_socket_fd;                     // 服务器套接字的文件描述符
-struct sockaddr_in server_address_struct; // 服务器的地址结构体
-
-pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER; // 互斥锁，保护对客户端数组的访问
-
-// 存储客户端信息的结构体
-typedef struct {
-  int fd;
-  struct sockaddr_in client_address_struct;
-  socklen_t client_address_struct_len;
-  char name[32];
-  char passwd[32];
-  pthread_t thread_id;
-  // 0: 未使用；1: 已连接；2: ...
-  int status;
-} ClientInfo;
-
-ClientInfo client_list[kMaxClientCount]; // 客户端数组，内存放客户端结构体
-int client_count = 0;                    // 当前已有的客户端数量
+int server_socket_fd;
+struct sockaddr_in server_address_struct;
+pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
+ClientInfo client_list[kMaxClientCount];
+int client_count = 0;
+char received_message[kStringLength];
 
 /* \033[31m 红色  \033[32m 绿色  \033[33m 橙色  \033[0m 重置  */
 
@@ -45,7 +33,6 @@ int client_count = 0;                    // 当前已有的客户端数量
   如果成功执行，则打印“成功执行xxx”，返回0.
 */
 
-// 创建服务器套接字；失败返回 -1，成功返回 0
 int
 create_socket() {
   prtlog("尝试创建服务器套接字. ");
@@ -59,7 +46,7 @@ create_socket() {
   return 0;
 }
 
-// 设置服务器的地址结构体
+
 void
 set_address_struct() {
   prtlog("尝试设置服务器的地址结构体. ");
@@ -71,7 +58,7 @@ set_address_struct() {
   prtlog("当前服务器端口号: %d", port_number);
 }
 
-// 绑定服务器的套接字到地址结构体；失败返回 -1，成功返回 0
+
 int
 bind_socket_and_addrstruct() {
   prtlog("尝试绑定服务器的套接字到地址结构体. ");
@@ -85,7 +72,7 @@ bind_socket_and_addrstruct() {
   return 0;
 }
 
-// 监听服务器套接字；失败返回 -1，成功返回 0
+
 int
 listen_socket() {
   prtlog("尝试监听服务器套接字. ");
@@ -98,8 +85,7 @@ listen_socket() {
   return 0;
 }
 
-// 通过文件描述符获取该客户端在数组中的索引.
-// 未找到返回 -1，否则返回索引值.
+
 int
 get_client_by_fd(int fd) {
   for (int i = 0; i < client_count; i++) {
@@ -110,9 +96,7 @@ get_client_by_fd(int fd) {
   return -1;
 }
 
-// 断开指定文件描述符的客户端的连接.
-// 参数：要断开连接的客户端的文件描述符.
-// 返回值：0：正常；-1：异常.
+
 int
 disconnect_client(int fd) {
   int index = get_client_by_fd(fd);
@@ -133,11 +117,10 @@ disconnect_client(int fd) {
   return 0;
 }
 
-// 向文件描述符为 fd 的客户端发送内容为 msg 的消息.
-// 返回：0：正常；-1：异常.
+
 int
 send_message_to_client(int fd, char msg[]) {
-  if (send(fd, msg, sizeof(msg), 0) < 0) {
+  if (send(fd, msg, kStringLength, 0) < 0) {
     prterr(send());
     prtlog("向客户端 %d 发送信息失败. ", fd);
     return -1;
@@ -146,11 +129,20 @@ send_message_to_client(int fd, char msg[]) {
   return 0;
 }
 
-// 向所有用户发送内容为 msg 的消息（相当于群发消息）.
-// 返回：0：正常；-1：异常.
+
 int
-forward_all_client(char msg[]) {
+forward_all_client(int whois, char msg[]) {
+  char username[kStringLength];
+  if (whois == -1) {
+    strcpy(username, "server");
+  } else {
+    strcpy(username, client_list[whois].name);
+  }
+
   for (int i = 0; i < client_count; i++) {
+    if (send_message_to_client(client_list[i].fd, username) < 0) {
+      return -1;
+    }
     if (send_message_to_client(client_list[i].fd, msg) < 0) {
       return -1;
     }
@@ -158,15 +150,7 @@ forward_all_client(char msg[]) {
   return 0;
 }
 
-char received_message[1024]; // 接受来自客户端的消息.
 
-// 使用结构体向线程传递参数.
-typedef struct {
-  int client_fd;
-} thread_args;
-
-// 线程函数. 执行 recv() 的地方.
-// 接受一个指向结构体的 void * 指针，内含客户端文件描述符.
 void *
 receive_from_client(void *arg) {
   thread_args *t = (thread_args *)arg;
@@ -174,7 +158,8 @@ receive_from_client(void *arg) {
   prtlog("执行 receive_from_client(). ");
   prtlog("client_fd = %d", client_fd);
 #endif
-  memset(received_message, 0, 1024);
+  memset(received_message, 0, kStringLength);
+  bool is_name = 1;
   do {
     int ret = recv(t->client_fd, received_message, sizeof(received_message), 0);
 #ifdef DEBUG_FLAG
@@ -191,45 +176,58 @@ receive_from_client(void *arg) {
       return NULL;
     }
     prtlog("\033[32m成功接收一条来自客户端 %d 的消息: \033[0m%s", t->client_fd, received_message);
-    prtlog("尝试群发这条消息. ");
-    if (forward_all_client(received_message) < 0) {
-      prtlog("\033[31m群发消息时发生异常. \033[0m");
+    // 来自客户端的第一条消息被认为是昵称.
+    if (is_name) {
+      strcpy(client_list[get_client_by_fd(t->client_fd)].name, received_message);
+      is_name = 0;
+      prtlog("该客户端的昵称设置为 %s", received_message);
+      const char msg[kStringLength] = " 进入了聊天室. ";
+      strcat(received_message, msg);
+      forward_all_client(-1, received_message);
+    } else { // 往后才是正式的消息.
+      prtlog("尝试群发这条消息. ");
+      if (forward_all_client(get_client_by_fd(t->client_fd), received_message) < 0) {
+        prtlog("\033[31m群发消息时发生异常. \033[0m");
+      }
+      prtlog("\033[32m群发成功. \033[0m");
     }
-    prtlog("\033[32m群发成功. \033[0m");
   } while (t->client_fd > 0 && client_count < kMaxClientCount);
   free(t);
   return NULL;
 }
 
-// 在接收了一个客户端后，将会执行此函数，去创建一个守卫线程，来“守卫”这个客户端是否有消息发送过来.
-// 接收一个参数 fd，代表这个客户端的套接字.
-// 返回 -3：线程创建失败；返回 -1：线程分离失败；返回 0：正常.
+
 int
 receive_guard(int fd) {
 #ifdef DEBUG_FLAG
   prtlog("执行 receive_guard(). ");
-  prtlog("client_fd = %d", client_fd);
+  prtlog("fd = %d", fd);
 #endif
   pthread_t receive_guard_p;
   thread_args *p = malloc(sizeof(thread_args));
   p->client_fd = fd;
+#ifdef DEBUG_FLAG
   prtlog("正在尝试创建 receive_guard 线程. ");
+#endif
   if (pthread_create(&receive_guard_p, NULL, receive_from_client, p) < 0) {
     prterr(pthread_create());
     return -3;
   }
+#ifdef DEBUG_FLAG
   prtlog("\033[32m成功创建 receive_guard 线程. \033[0m");
   prtlog("正在尝试分离 receive_guard 线程. ");
+#endif
   if (pthread_detach(receive_guard_p) != 0) {
     prterr(pthread_datach());
     return -1;
   }
+#ifdef DEBUG_FLAG
   prtlog("\033[32m成功分离 receive_guard 线程. \033[0m");
+#endif
   return 0;
 }
 
-// 这是一个线程函数，必须返回 void *，必须接受 void * 类型的参数.
-// 这是真正执行阻塞 accpet 的地方，这个函数中的 accept 所接受的新的客户端连接会被移入新的线程中.
+
 void *
 accept_guard(void *arg) {
 #ifdef DEBUG_FLAG
@@ -271,8 +269,6 @@ accept_guard(void *arg) {
 }
 
 
-// 接受新的来自客户端的连接请求
-// 这仅是主函数的一个分支过程，并不需要一个独立的进程
 int
 accept_client_connection() {
 #ifdef DEBUG_FLAG
@@ -283,24 +279,30 @@ accept_client_connection() {
     return -2;
   }
   pthread_t accept_guard_p;
+#ifdef DEBUG_FLAG
   prtlog("正在尝试创建 accept_guard 线程. ");
+#endif
   // 真正执行阻塞 accept 的位置才需要一个独立的进程
   if (pthread_create(&accept_guard_p, NULL, accept_guard, NULL) < 0) {
     prterr(pthread_create());
     return -3;
   }
+#ifdef DEBUG_FLAG
   prtlog("\033[32m成功创建 accept_guard 线程. \033[0m");
   prtlog("正在尝试分离 accept_guard 线程. ");
+#endif
   if (pthread_detach(accept_guard_p) != 0) {
     prterr(pthread_datach());
     return -1;
   }
+#ifdef DEBUG_FLAG
   prtlog("\033[32m成功分离 accept_guard 线程. \033[0m");
+#endif
 
   return 0;
 }
 
-// 打印服务器当前状态信息
+
 int
 print_server_status() {
   struct sockaddr_in current_status;
@@ -318,131 +320,14 @@ print_server_status() {
   return 0;
 }
 
-// 打印功能菜单
+
 void
 printmenu() {
-  prtlog("1.设置端口号；");
-  prtlog("2.尝试开始监听；");
+  prtlog("1.打印菜单；");
+  prtlog("2.开始监听；");
   prtlog("3.查看当前状态；");
-  prtlog("4.开始接受客户端连接；");
-  prtlog("5.断开所有客户端连接；");
-  // prtlog("6.断开某一客户端连接；");
-  prtlog("7.关闭服务器；");
+  prtlog("4.断开所有客户端连接；");
+  prtlog("5.设置端口号；");
+  prtlog("6.关闭服务器；");
   prtlog("0.退出程序；");
-}
-
-int
-main(int argc, char *argv[]) {
-  log_file = fopen("server.log", "a");
-  if (log_file == NULL) {
-    prterr(fopen());
-    erret;
-  }
-
-  /*先执行操作，获取返回值；如果错误，执行erret. */
-
-  // 创建服务器套接字
-  if (create_socket() == -1) {
-    close(server_socket_fd);
-    erret;
-  }
-
-  // 设置服务器的地址结构体
-  set_address_struct();
-
-  // 绑定服务器的套接字到地址结构体
-  if (bind_socket_and_addrstruct() == -1) {
-    close(server_socket_fd);
-    erret;
-  }
-
-  bool exit_flag = 0; // 程序是否应该退出的标志，用在 while 的条件中
-  while (!exit_flag) {
-    printmenu();
-    int id1 = 0;
-    prtlog("你想要进行什么操作：");
-    scanf("%d", &id1);
-
-    switch (id1) {
-
-    case 1: {
-      prtlog("请输入新端口号：");
-      int new_port_number = 0;
-      scanf("%d", &new_port_number);
-      if (new_port_number == port_number) {
-        prtlog("\033[33m输入了相同的端口号，端口号未改变. \033[0m");
-      } else {
-        port_number = new_port_number;
-        prtlog("\033[32m成功修改端口号为 %d. \033[0m", port_number);
-      }
-      close(server_socket_fd);
-      prtlog("关闭了旧套接字. ");
-      prtlog("尝试设置新的套接字：");
-      if (create_socket() == -1) {
-        close(server_socket_fd);
-        erret;
-      }
-      set_address_struct();
-      if (bind_socket_and_addrstruct() == -1) {
-        close(server_socket_fd);
-        erret;
-      }
-      prtlog("\033[32m重置服务端套接字成功. \033[0m");
-      break;
-    }
-
-    case 2: {
-      if (listen_socket() == -1) {
-        close(server_socket_fd);
-        erret;
-      }
-      break;
-    }
-
-    case 3: {
-      if (print_server_status() == -1) {
-        close(server_socket_fd);
-        erret;
-      }
-      break;
-    }
-
-    case 4: {
-      if (accept_client_connection() < 0) {
-        close(server_socket_fd);
-        erret;
-      }
-      break;
-    }
-
-    case 5: {
-      // if (accept_client_connection() < 0) {
-      //   close(server_socket_fd);
-      //   erret;
-      // }
-      break;
-    }
-
-    case 7:
-      close(server_socket_fd);
-      prtlog("已关闭服务器套接字. ");
-      break;
-
-    case 0:
-      close(server_socket_fd);
-      prtlog("已关闭服务器套接字. ");
-      exit_flag = 1;
-      prtlog("正在退出 ...... ");
-      if (log_file != NULL) {
-        fclose(log_file);
-      }
-      break;
-
-    default:
-      prtlog("\033[31m输入了非法操作序号，请重新输入. \033[0m\n");
-      break;
-    }
-  }
-
-  return 0;
 }

@@ -1,23 +1,19 @@
+#pragma once
 #ifndef LOGGER_H
 #define LOGGER_H
-#pragma once
 
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
 
-#ifdef SERVER_C
-char user[7] = "server";
-#elifdef CLIENT_C
-char user[7] = "client";
-#endif
+extern char user[1024];
+extern time_t now;
+extern struct tm *tm_info;
+extern char format_time[32];
+extern FILE *log_file;
 
-#define INITLOG         \
-  time_t now;           \
-  struct tm *tm_info;   \
-  char format_time[32]; \
-  FILE *log_file
+#define SWITCHTO(XXX) strcpy(user, XXX)
 
 // 实现printf()同时输出到终端和日志文件
 #define prt_to_file(XXX, ...)                \
