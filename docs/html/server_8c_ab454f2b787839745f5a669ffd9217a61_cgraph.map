@@ -1,0 +1,12 @@
+<map id="receive_from_client" name="receive_from_client">
+<area shape="rect" id="Node000001" title=" " alt="" coords="5,56,140,83"/>
+<area shape="rect" id="Node000002" href="$server_8c.html#aad3745fe281e8484216735b5775b4908" title=" " alt="" coords="188,5,310,32"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="121,53,184,34,186,39,122,58"/>
+<area shape="rect" id="Node000003" href="$server_8c.html#a4fe8b764b24d2cba651f32472cf4a0fd" title=" " alt="" coords="382,31,499,57"/>
+<area shape="poly" id="edge5_Node000001_Node000003" title=" " alt="" coords="140,62,367,46,367,52,140,67"/>
+<area shape="rect" id="Node000004" href="$server_8c.html#ac357019e5afaf8912686d538415d1e19" title=" " alt="" coords="188,107,310,133"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="122,81,186,99,184,104,121,86"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="311,24,368,32,367,37,310,29"/>
+<area shape="rect" id="Node000005" href="$server_8c.html#aeef230f80715d46d5f2fab3c48054946" title=" " alt="" coords="358,107,523,133"/>
+<area shape="poly" id="edge4_Node000004_Node000005" title=" " alt="" coords="311,117,342,117,342,123,311,123"/>
+</map>

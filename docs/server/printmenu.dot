@@ -1,0 +1,20 @@
+digraph {
+graph [splines=polyline];
+D0 [shape=box, style=rounded, label="begin"];
+{rank = sink; D1 [shape=box, style=rounded, label="end"];}
+D4 [shape=box, label="prtlog(\"1.打印菜单；\");"];
+D6 [shape=box, label="prtlog(\"2.开始监听；\");"];
+D8 [shape=box, label="prtlog(\"3.查看当前状态；\");"];
+D10 [shape=box, label="prtlog(\"4.断开所有客户端连接；\");"];
+D12 [shape=box, label="prtlog(\"5.设置端口号；\");"];
+D14 [shape=box, label="prtlog(\"6.关闭服务器；\");"];
+D16 [shape=box, label="prtlog(\"0.退出程序；\");"];
+D4 -> D6;
+D6 -> D8;
+D8 -> D10;
+D10 -> D12;
+D12 -> D14;
+D14 -> D16;
+D16 -> D1;
+D0 -> D4;
+}

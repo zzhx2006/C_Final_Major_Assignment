@@ -1,0 +1,39 @@
+digraph {
+graph [splines=polyline];
+D0 [shape=box, style=rounded, label="begin"];
+{rank = sink; D1 [shape=box, style=rounded, label="end"];}
+D4 [shape=box, label="prtlog(\"尝试连接客户端的套接字到地址结构体. \");"];
+D6 [shape=diamond, label="(connect(client_socket_fd, (struct sockaddr *)&server_address_struct,
+              sizeof(server_address_struct)) < 0)?"];
+D11 [shape=box, label="prterr(connect());"];
+D13 [shape=box, label="return -1;"];
+D15 [shape=box, label="prtlog(\"\033[32m成功连接到服务器. \033[0m\");"];
+D17 [shape=box, label="prtlog(\"\033[33m当前服务器信息：%s:%d\033[0m\", inet_ntoa(server_address_struct.sin_addr), ntohs(server_address_struct.sin_port));"];
+D19 [shape=box, label="prtlog(\"请输入昵称：\");"];
+D21 [shape=box, label="scanf(\"%s\", name);"];
+D23 [shape=diamond, label="(send_name_to_server() < 0)?"];
+D28 [shape=box, label="prterr(send_name_to_server());"];
+D30 [shape=box, label="return -1;"];
+D32 [shape=box, label="pthread_mutex_lock(&lock);"];
+D34 [shape=box, label="SWITCHTO(name);"];
+D36 [shape=box, label="pthread_mutex_unlock(&lock);"];
+D38 [shape=box, label="return 0;"];
+D4 -> D6;
+D6:e -> D15:n [xlabel=N];
+D6:s -> D11:n [xlabel=Y];
+D15 -> D17;
+D13 -> D1;
+D11 -> D13;
+D17 -> D19;
+D19 -> D21;
+D21 -> D23;
+D23:e -> D32:n [xlabel=N];
+D23:s -> D28:n [xlabel=Y];
+D32 -> D34;
+D30 -> D1;
+D28 -> D30;
+D34 -> D36;
+D36 -> D38;
+D38 -> D1;
+D0 -> D4;
+}

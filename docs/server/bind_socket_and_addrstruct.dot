@@ -1,0 +1,20 @@
+digraph {
+graph [splines=polyline];
+D0 [shape=box, style=rounded, label="begin"];
+{rank = sink; D1 [shape=box, style=rounded, label="end"];}
+D4 [shape=box, label="prtlog(\"尝试绑定服务器的套接字到地址结构体. \");"];
+D6 [shape=diamond, label="(bind(server_socket_fd, (struct sockaddr *)&server_address_struct,
+           sizeof(server_address_struct)) < 0)?"];
+D11 [shape=box, label="prterr(bind());"];
+D13 [shape=box, label="return -1;"];
+D15 [shape=box, label="prtlog(\"\033[32m绑定套接字到地址结构体成功. \033[0m\");"];
+D17 [shape=box, label="return 0;"];
+D4 -> D6;
+D6:e -> D15:n [xlabel=N];
+D6:s -> D11:n [xlabel=Y];
+D15 -> D17;
+D13 -> D1;
+D11 -> D13;
+D17 -> D1;
+D0 -> D4;
+}

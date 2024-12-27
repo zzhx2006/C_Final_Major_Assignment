@@ -1,0 +1,40 @@
+digraph {
+graph [splines=polyline];
+D0 [shape=box, style=rounded, label="begin"];
+{rank = sink; D1 [shape=box, style=rounded, label="end"];}
+D4 [shape=box, label="prtlog(\"执行 receive_guard(). \");"];
+D6 [shape=box, label="prtlog(\"fd = %d\", fd);"];
+D8 [shape=box, label="pthread_t receive_guard_p;"];
+D10 [shape=box, label="thread_args *p = malloc(sizeof(thread_args));"];
+D12 [shape=box, label="p->client_fd = fd;"];
+D14 [shape=box, label="prtlog(\"正在尝试创建 receive_guard 线程. \");"];
+D16 [shape=diamond, label="(pthread_create(&receive_guard_p, NULL, receive_from_client, p) < 0)?"];
+D21 [shape=box, label="prterr(pthread_create());"];
+D23 [shape=box, label="return -3;"];
+D25 [shape=box, label="prtlog(\"\033[32m成功创建 receive_guard 线程. \033[0m\");"];
+D27 [shape=box, label="prtlog(\"正在尝试分离 receive_guard 线程. \");"];
+D29 [shape=diamond, label="(pthread_detach(receive_guard_p) != 0)?"];
+D34 [shape=box, label="prterr(pthread_datach());"];
+D36 [shape=box, label="return -1;"];
+D38 [shape=box, label="prtlog(\"\033[32m成功分离 receive_guard 线程. \033[0m\");"];
+D40 [shape=box, label="return 0;"];
+D4 -> D6;
+D6 -> D8;
+D8 -> D10;
+D10 -> D12;
+D12 -> D14;
+D14 -> D16;
+D16:e -> D25:n [xlabel=N];
+D16:s -> D21:n [xlabel=Y];
+D25 -> D27;
+D23 -> D1;
+D21 -> D23;
+D27 -> D29;
+D29:e -> D38:n [xlabel=N];
+D29:s -> D34:n [xlabel=Y];
+D38 -> D40;
+D36 -> D1;
+D34 -> D36;
+D40 -> D1;
+D0 -> D4;
+}

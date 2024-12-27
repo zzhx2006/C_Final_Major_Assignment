@@ -1,0 +1,32 @@
+digraph {
+graph [splines=polyline];
+D0 [shape=box, style=rounded, label="begin"];
+{rank = sink; D1 [shape=box, style=rounded, label="end"];}
+D4 [shape=box, label="int index = get_client_by_fd(fd);"];
+D6 [shape=diamond, label="(index < 0)?"];
+D11 [shape=box, label="prtlog(\"\033[31m断开客户端 %d 时出错：\033[0m\", fd);"];
+D13 [shape=box, label="prtlog(\"\033[31m未找到文件描述符为 %d 的客户端. \033[0m\", fd);"];
+D15 [shape=box, label="return -1;"];
+D17 [shape=box, label="close(fd);"];
+D19 [shape=diamond, label="(index != client_count - 1)?"];
+D24 [shape=box, label="memcpy(&client_list[index], &client_list[client_count - 1], sizeof(ClientInfo));"];
+D26 [shape=box, label="client_count--;"];
+D28 [shape=box, label="prtlog(\"已断开与客户端 %d 的连接. \", fd);"];
+D30 [shape=box, label="prtlog(\"当前在线用户数：%d\", client_count);"];
+D32 [shape=box, label="return 0;"];
+D4 -> D6;
+D6:e -> D17:n [xlabel=N];
+D6:s -> D11:n [xlabel=Y];
+D13 -> D15;
+D17 -> D19;
+D15 -> D1;
+D11 -> D13;
+D19:e -> D26:n [xlabel=N];
+D24 -> D26;
+D26 -> D28;
+D19:s -> D24:n [xlabel=Y];
+D28 -> D30;
+D30 -> D32;
+D32 -> D1;
+D0 -> D4;
+}

@@ -1,0 +1,9 @@
+<map id="send_message_to_client" name="send_message_to_client">
+<area shape="rect" id="Node000001" title=" " alt="" coords="508,5,674,32"/>
+<area shape="rect" id="Node000002" href="$server_8c.html#ac357019e5afaf8912686d538415d1e19" title=" " alt="" coords="338,5,460,32"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="493,21,461,21,461,16,493,16"/>
+<area shape="rect" id="Node000003" href="$server_8c.html#ab454f2b787839745f5a669ffd9217a61" title=" " alt="" coords="156,5,290,32"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="323,21,290,21,290,16,323,16"/>
+<area shape="rect" id="Node000004" href="$server_8c.html#a5bacfafc350eede139f1f6adb9c895ce" title=" " alt="" coords="5,5,108,32"/>
+<area shape="poly" id="edge3_Node000003_Node000004" title=" " alt="" coords="140,21,108,21,108,16,140,16"/>
+</map>

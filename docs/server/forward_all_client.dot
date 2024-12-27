@@ -1,0 +1,34 @@
+digraph {
+graph [splines=polyline];
+D0 [shape=box, style=rounded, label="begin"];
+{rank = sink; D1 [shape=box, style=rounded, label="end"];}
+D4 [shape=box, label="char username[kStringLength];"];
+D6 [shape=diamond, label="(whois == -1)?"];
+D11 [shape=box, label="strcpy(username, \"server\");"];
+D15 [shape=box, label="strcpy(username, client_list[whois].name);"];
+D19 [shape=diamond, label="i < client_count?"];
+D20 [shape=box, label="int i = 0;"];
+D21 [shape=box, label="i++"];
+D24 [shape=diamond, label="(send_message_to_client(client_list[i].fd, username) < 0)?"];
+D29 [shape=box, label="return -1;"];
+D31 [shape=diamond, label="(send_message_to_client(client_list[i].fd, msg) < 0)?"];
+D36 [shape=box, label="return -1;"];
+D38 [shape=box, label="return 0;"];
+D4 -> D6;
+D11 -> D20;
+D15 -> D20;
+D6:s -> D11:n [xlabel=Y];
+D6:e -> D15:n [xlabel=N];
+D19:e -> D38:n [xlabel=N];
+D20 -> D19;
+D24:e -> D31:n [xlabel=N];
+D21 -> D19;
+D24:s -> D29:n [xlabel=Y];
+D29 -> D1;
+D31:e -> D21:n [xlabel=N];
+D31:s -> D36:n [xlabel=Y];
+D36 -> D1;
+D19:s -> D24:n [xlabel=Y];
+D38 -> D1;
+D0 -> D4;
+}

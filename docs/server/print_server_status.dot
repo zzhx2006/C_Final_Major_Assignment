@@ -1,0 +1,30 @@
+digraph {
+graph [splines=polyline];
+D0 [shape=box, style=rounded, label="begin"];
+{rank = sink; D1 [shape=box, style=rounded, label="end"];}
+D4 [shape=box, label="struct sockaddr_in current_status;"];
+D6 [shape=box, label="socklen_t current_status_len = sizeof(current_status);"];
+D8 [shape=diamond, label="(getsockname(server_socket_fd, (struct sockaddr *)&current_status,
+                  &current_status_len) < 0)?"];
+D13 [shape=box, label="prterr(getsockname());"];
+D15 [shape=box, label="return -1;"];
+D17 [shape=box, label="prtlog(\"当前状态：\");"];
+D19 [shape=box, label="prtlog(\"IP 地址：%s\", inet_ntoa(current_status.sin_addr));"];
+D21 [shape=box, label="prtlog(\"监听端口号：%d\", ntohs(current_status.sin_port));"];
+D23 [shape=box, label="prtlog(\"在线用户数：%d\", client_count);"];
+D25 [shape=box, label="prtlog(\"服务器文件描述符：%d\", server_socket_fd);"];
+D27 [shape=box, label="return 0;"];
+D4 -> D6;
+D6 -> D8;
+D8:e -> D17:n [xlabel=N];
+D8:s -> D13:n [xlabel=Y];
+D17 -> D19;
+D15 -> D1;
+D13 -> D15;
+D19 -> D21;
+D21 -> D23;
+D23 -> D25;
+D25 -> D27;
+D27 -> D1;
+D0 -> D4;
+}

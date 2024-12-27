@@ -1,0 +1,19 @@
+digraph {
+graph [splines=polyline];
+D0 [shape=box, style=rounded, label="begin"];
+{rank = sink; D1 [shape=box, style=rounded, label="end"];}
+D4 [shape=box, label="prtlog(\"尝试向服务器发送一条消息. \");"];
+D6 [shape=diamond, label="(send(client_socket_fd, msg, kStringLength, 0) < 0)?"];
+D11 [shape=box, label="prterr(send());"];
+D13 [shape=box, label="return -1;"];
+D15 [shape=box, label="prtlog(\"\033[32m成功向服务器发送一条消息: \033[0m%s\", msg);"];
+D17 [shape=box, label="return 0;"];
+D4 -> D6;
+D6:e -> D15:n [xlabel=N];
+D6:s -> D11:n [xlabel=Y];
+D15 -> D17;
+D13 -> D1;
+D11 -> D13;
+D17 -> D1;
+D0 -> D4;
+}

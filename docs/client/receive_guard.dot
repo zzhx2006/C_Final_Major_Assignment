@@ -1,0 +1,32 @@
+digraph {
+graph [splines=polyline];
+D0 [shape=box, style=rounded, label="begin"];
+{rank = sink; D1 [shape=box, style=rounded, label="end"];}
+D4 [shape=box, label="pthread_t receive_guard_p;"];
+D6 [shape=box, label="prtlog(\"正在尝试创建 receive_guard 线程. \");"];
+D8 [shape=diamond, label="(pthread_create(&receive_guard_p, NULL, receive_from_server, NULL) < 0)?"];
+D13 [shape=box, label="prterr(pthread_create());"];
+D15 [shape=box, label="return -3;"];
+D17 [shape=box, label="prtlog(\"\033[32m成功创建 receive_guard 线程. \033[0m\");"];
+D19 [shape=box, label="prtlog(\"正在尝试分离 receive_guard 线程. \");"];
+D21 [shape=diamond, label="(pthread_detach(receive_guard_p) != 0)?"];
+D26 [shape=box, label="prterr(pthread_datach());"];
+D28 [shape=box, label="return -1;"];
+D30 [shape=box, label="prtlog(\"\033[32m成功分离 receive_guard 线程. \033[0m\");"];
+D32 [shape=box, label="return 0;"];
+D4 -> D6;
+D6 -> D8;
+D8:e -> D17:n [xlabel=N];
+D8:s -> D13:n [xlabel=Y];
+D17 -> D19;
+D15 -> D1;
+D13 -> D15;
+D19 -> D21;
+D21:e -> D30:n [xlabel=N];
+D21:s -> D26:n [xlabel=Y];
+D30 -> D32;
+D28 -> D1;
+D26 -> D28;
+D32 -> D1;
+D0 -> D4;
+}

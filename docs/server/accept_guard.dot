@@ -1,0 +1,65 @@
+digraph {
+graph [splines=polyline];
+D0 [shape=box, style=rounded, label="begin"];
+{rank = sink; D1 [shape=box, style=rounded, label="end"];}
+D4 [shape=box, label="prtlog(\"执行 accept_guard(). \");"];
+D8 [shape=diamond, label="(client_count < kMaxClientCount)?"];
+D11 [shape=box, label="pthread_mutex_lock(&lock);"];
+D13 [shape=box, label="client_list[client_count].client_address_struct_len = sizeof(client_list[client_count].client_address_struct);"];
+D15 [shape=box, label="pthread_mutex_unlock(&lock);"];
+D17 [shape=box, label="int new_socket_fd;"];
+D19 [shape=box, label="new_socket_fd = accept(server_socket_fd,
+                           (struct sockaddr *)&client_list[client_count].client_address_struct,
+                           &client_list[client_count].client_address_struct_len);"];
+D21 [shape=diamond, label="(new_socket_fd < 0)?"];
+D26 [shape=box, label="prterr(accept());"];
+D28 [shape=box, label="prtlog(\"\033[33m该 accept 线程被异常退出. \033[0m\");"];
+D30 [shape=box, label="return NULL;"];
+D34 [shape=box, label="prtlog(\"\033[32m成功接受了新的连接请求. \033[0m\");"];
+D36 [shape=box, label="prtlog(\"\033[33m该客户端的 IP 地址：%s\033[0m\", inet_ntoa(client_list[client_count].client_address_struct.sin_addr));"];
+D38 [shape=box, label="prtlog(\"\033[33m该客户端的端口号：%d\033[0m\", ntohs(client_list[client_count].client_address_struct.sin_port));"];
+D40 [shape=box, label="prtlog(\"\033[33m该客户端套接字在 client_list[] 中的索引：%d\033[0m\", client_count);"];
+D42 [shape=box, label="pthread_mutex_lock(&lock);"];
+D44 [shape=box, label="client_list[client_count].fd = new_socket_fd;"];
+D46 [shape=box, label="client_list[client_count].thread_id = pthread_self();"];
+D48 [shape=box, label="client_count++;"];
+D50 [shape=box, label="pthread_mutex_unlock(&lock);"];
+D52 [shape=diamond, label="(receive_guard(new_socket_fd) < 0)?"];
+D57 [shape=box, label="prterr(receive_guard());"];
+D59 [shape=box, label="close(server_socket_fd);"];
+D61 [shape=box, label="return NULL;"];
+D63 [shape=box, label="prtlog(\"继续监听......\");"];
+D65 [shape=box, label="prtlog(\"\033[33m该 accept 线程被退出. \033[0m\");"];
+D67 [shape=box, label="return NULL;"];
+D8:e -> D65:n [xlabel=N];
+D4 -> D11;
+D11 -> D13;
+D13 -> D15;
+D15 -> D17;
+D17 -> D19;
+D19 -> D21;
+D26 -> D28;
+D28 -> D30;
+D34 -> D36;
+D30 -> D1;
+D21:e -> D34:n [xlabel=N];
+D36 -> D38;
+D38 -> D40;
+D40 -> D42;
+D42 -> D44;
+D44 -> D46;
+D46 -> D48;
+D48 -> D50;
+D50 -> D52;
+D52:e -> D63:n [xlabel=N];
+D52:s -> D57:n [xlabel=Y];
+D59 -> D61;
+D63 -> D8;
+D61 -> D1;
+D57 -> D59;
+D65 -> D67;
+D21:s -> D26:n [xlabel=Y];
+D8:s -> D11:n [xlabel=Y];
+D67 -> D1;
+D0 -> D4;
+}

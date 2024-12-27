@@ -1,0 +1,23 @@
+digraph {
+graph [splines=polyline];
+D0 [shape=box, style=rounded, label="begin"];
+{rank = sink; D1 [shape=box, style=rounded, label="end"];}
+D4 [shape=box, label="prtlog(\"尝试创建客户端套接字. \");"];
+D6 [shape=box, label="client_socket_fd = socket(AF_INET, SOCK_STREAM, 0);"];
+D8 [shape=diamond, label="(client_socket_fd < 0)?"];
+D13 [shape=box, label="prterr(socket());"];
+D15 [shape=box, label="return -1;"];
+D17 [shape=box, label="prtlog(\"\033[32m创建客户端套接字成功. \033[0m\");"];
+D19 [shape=box, label="prtlog(\"客户端套接字的文件描述符为 %d. \", client_socket_fd);"];
+D21 [shape=box, label="return 0;"];
+D4 -> D6;
+D6 -> D8;
+D8:e -> D17:n [xlabel=N];
+D8:s -> D13:n [xlabel=Y];
+D17 -> D19;
+D15 -> D1;
+D13 -> D15;
+D19 -> D21;
+D21 -> D1;
+D0 -> D4;
+}
