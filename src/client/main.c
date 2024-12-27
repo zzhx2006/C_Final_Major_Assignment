@@ -16,7 +16,7 @@
 
 int
 main() {
-  SWITCHTO("server");
+  SWITCHTO("client");
   log_file = fopen("client.log", "a");
   if (log_file == NULL) {
     prterr(fopen());
