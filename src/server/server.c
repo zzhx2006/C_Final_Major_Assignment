@@ -329,5 +329,6 @@ printmenu() {
   prtlog("4.断开所有客户端连接；");
   prtlog("5.设置端口号；");
   prtlog("6.关闭服务器；");
+  prtlog("7.关于；");
   prtlog("0.退出程序；");
 }

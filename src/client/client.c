@@ -186,6 +186,7 @@ printmenu() {
   prtlog("4.尝试向服务器发送信息；");
   prtlog("5.设置端口号；");
   prtlog("6.断开连接；");
+  prtlog("7.关于；");
   prtlog("0.退出程序；");
   pthread_mutex_unlock(&lock);
 }

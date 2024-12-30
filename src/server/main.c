@@ -117,6 +117,16 @@ main() {
       prtlog("已关闭服务器套接字. ");
       break;
 
+    case 7:
+      prtlog("程序名称：基于Linux的简易多线程聊天室系统; ");
+      prtlog("版本信息：v1.0; ");
+      prtlog("开发时间：2024年12月15日; ");
+      prtlog("开发者：张展皓翔; ");
+      prtlog("学号：8002124159; ");
+      prtlog("专业：软件工程; ");
+      prtlog("班级：2405班; ");
+      break;
+
     case 0:
       close(server_socket_fd);
       prtlog("已关闭服务器套接字. ");
